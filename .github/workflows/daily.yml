@@ -1,0 +1,31 @@
+name: Cocos Balance Diario
+
+on:
+  schedule:
+    - cron: '0 23 * * *'  # 20:00 ART (UTC-3)
+  workflow_dispatch:        # permite correrlo manualmente
+
+jobs:
+  fetch-balance:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+
+      - name: Instalar Chromium
+        run: playwright install chromium --with-deps
+
+      - name: Correr script
+        env:
+          COCOS_EMAIL: ${{ secrets.COCOS_EMAIL }}
+          COCOS_PASSWORD: ${{ secrets.COCOS_PASSWORD }}
+          COCOS_TOTP_SECRET: ${{ secrets.COCOS_TOTP_SECRET }}
+          N8N_WEBHOOK_URL: ${{ secrets.N8N_WEBHOOK_URL }}
+        run: xvfb-run python fetch_portfolio.py
