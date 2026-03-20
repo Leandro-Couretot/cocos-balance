@@ -2,7 +2,7 @@ name: Cocos Balance Diario
 
 on:
   schedule:
-    - cron: '0 23 * * *'  # 20:00 ART (UTC-3)
+    - cron: '0 23 * * 1-5'  # 20:00 ART (UTC-3), lunes a viernes
   workflow_dispatch:        # permite correrlo manualmente
 
 jobs:
