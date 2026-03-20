@@ -28,4 +28,7 @@ jobs:
           COCOS_PASSWORD: ${{ secrets.COCOS_PASSWORD }}
           COCOS_TOTP_SECRET: ${{ secrets.COCOS_TOTP_SECRET }}
           N8N_WEBHOOK_URL: ${{ secrets.N8N_WEBHOOK_URL }}
+          COCOS_EMAIL_2: ${{ secrets.COCOS_EMAIL_2 }}
+          COCOS_PASSWORD_2: ${{ secrets.COCOS_PASSWORD_2 }}
+          COCOS_TOTP_SECRET_2: ${{ secrets.COCOS_TOTP_SECRET_2 }}
         run: xvfb-run python fetch_portfolio.py
