@@ -32,3 +32,11 @@ jobs:
           COCOS_PASSWORD_2: ${{ secrets.COCOS_PASSWORD_2 }}
           COCOS_TOTP_SECRET_2: ${{ secrets.COCOS_TOTP_SECRET_2 }}
         run: xvfb-run python fetch_portfolio.py
+
+      - name: Subir screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: screenshots/
+          if-no-files-found: ignore

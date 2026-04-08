@@ -8,6 +8,17 @@ from playwright.sync_api import sync_playwright
 load_dotenv()
 
 WEBHOOK_URL = os.environ.get("N8N_WEBHOOK_URL")
+SCREENSHOTS_DIR = "screenshots"
+
+
+def _screenshot(page, owner, step):
+    os.makedirs(SCREENSHOTS_DIR, exist_ok=True)
+    path = f"{SCREENSHOTS_DIR}/{owner}_{step}.png"
+    try:
+        page.screenshot(path=path, full_page=True)
+        print(f"[{owner}] Screenshot guardado: {path}")
+    except Exception as e:
+        print(f"[{owner}] No se pudo guardar screenshot '{step}': {e}")
 
 
 def get_balance(email, password, totp_secret, owner):
@@ -18,48 +29,60 @@ def get_balance(email, password, totp_secret, owner):
         page = context.new_page()
         page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
 
-        print(f"[{owner}] Navegando a Cocos...")
-        page.goto("https://app.cocos.capital/", wait_until="load")
-        page.wait_for_timeout(3000)
-
-        print(f"[{owner}] Llenando credenciales...")
-        page.locator('input[type="email"], input[type="text"]').first.fill(email)
-        page.locator('input[type="password"]').first.fill(password)
-        page.get_by_role("button", name="Iniciar sesión").click()
-
         try:
-            print(f"[{owner}] Esperando TOTP...")
-            page.wait_for_selector("text=Ingresá el código", timeout=10000)
-            totp_code = pyotp.TOTP(totp_secret).now()
-            print(f"[{owner}] Ingresando TOTP: {totp_code}")
-            page.keyboard.type(totp_code)
-            page.wait_for_timeout(2000)
+            print(f"[{owner}] Navegando a Cocos...")
+            page.goto("https://app.cocos.capital/", wait_until="load")
+            page.wait_for_timeout(3000)
+            _screenshot(page, owner, "01_login_page")
+
+            print(f"[{owner}] Llenando credenciales...")
+            page.locator('input[type="email"], input[type="text"]').first.fill(email)
+            page.locator('input[type="password"]').first.fill(password)
+            page.get_by_role("button", name="Iniciar sesión").click()
+
+            try:
+                print(f"[{owner}] Esperando TOTP...")
+                page.wait_for_selector("text=Ingresá el código", timeout=10000)
+                _screenshot(page, owner, "02_totp_page")
+                totp_code = pyotp.TOTP(totp_secret).now()
+                print(f"[{owner}] Ingresando TOTP: {totp_code}")
+                page.keyboard.type(totp_code)
+                page.wait_for_timeout(2000)
+            except Exception:
+                print(f"[{owner}] Sin TOTP, continuando...")
+                _screenshot(page, owner, "02_after_login")
+
+            try:
+                page.wait_for_url("**/trusted-device**", timeout=10000)
+                print(f"[{owner}] Pantalla dispositivo seguro, aceptando...")
+                _screenshot(page, owner, "03_trusted_device")
+                page.get_by_role("button", name="Sí, guardar como dispositivo seguro").click()
+            except Exception:
+                pass
+
+            print(f"[{owner}] Navegando a portfolio...")
+            page.goto("https://app.cocos.capital/capital-portfolio", wait_until="load")
+            page.wait_for_timeout(3000)
+            _screenshot(page, owner, "04_portfolio_page")
+
+            print(f"[{owner}] Extrayendo balance...")
+            balance_text = page.evaluate("""() => {
+                const xpath = '//p[contains(@class,"_availableWrapper_")]';
+                const result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+                const el = result.singleNodeValue;
+                return el ? el.textContent.trim() : null;
+            }""")
+
+            if not balance_text:
+                _screenshot(page, owner, "05_balance_not_found")
+                raise Exception(f"[{owner}] No se encontró el valor en el DOM")
+
         except Exception:
-            print(f"[{owner}] Sin TOTP, continuando...")
-
-        try:
-            page.wait_for_url("**/trusted-device**", timeout=10000)
-            print(f"[{owner}] Pantalla dispositivo seguro, aceptando...")
-            page.get_by_role("button", name="Sí, guardar como dispositivo seguro").click()
-        except Exception:
-            pass
-
-        print(f"[{owner}] Navegando a portfolio...")
-        page.goto("https://app.cocos.capital/capital-portfolio", wait_until="load")
-        page.wait_for_timeout(3000)
-
-        print(f"[{owner}] Extrayendo balance...")
-        balance_text = page.evaluate("""() => {
-            const xpath = '//p[contains(@class,"_availableWrapper_")]';
-            const result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
-            const el = result.singleNodeValue;
-            return el ? el.textContent.trim() : null;
-        }""")
+            _screenshot(page, owner, "ERROR_final_state")
+            browser.close()
+            raise
 
         browser.close()
-
-        if not balance_text:
-            raise Exception(f"[{owner}] No se encontró el valor en el DOM")
 
         clean = balance_text.replace("$", "").replace(".", "").replace(",", ".").strip()
         balance = float(clean)
